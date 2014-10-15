@@ -1,7 +1,10 @@
 #! /usr/bin/python
 
+import itertools
+
 from random import randrange
 from collections import defaultdict
+from algoyoga_test import BaseTest
 
 def randlist(n, n2=1000):
     """ generate a random list of length n """
@@ -18,6 +21,9 @@ def s_sort(seq):
 
 def s_sort_rec(seq, i=None):
     """ perform selection sort recursively """
+    # if the sequence is empty return it
+    if not seq:
+        return seq
     if i is None:
         i = len(seq)-1
     if i == 0:
@@ -39,6 +45,9 @@ def i_sort(seq):
 
 def i_sort_rec(seq, i=None):
     """ perform insertion sort recursively"""
+    # if the sequence is empty return it
+    if not seq:
+        return seq
     if i is None:
         i=len(seq)
     if i==1:
@@ -64,4 +73,26 @@ def count_sort(seq):
         result.extend(counts[i])
     return result
 
+class SortTest(BaseTest):
+    """ Unit test for the sorting algorithms. """
+    def __init__(self):
+        tests = [self.sorttest]
+        super(SortTest,self).__init__("sorting algorithms", tests)
 
+    def sorttest(self):
+        """ Test sorting functions (s_sort, s_sort_rec, i_sort, i_sort_rec)."""
+        sortfuncs = [s_sort, s_sort_rec, i_sort, i_sort_rec]
+        for sortfunc in sortfuncs:
+            print "testing {!s}".format(sortfunc.func_name)
+            empty = [] 
+            sortfunc(empty)
+            assert empty == []
+            for perm in itertools.permutations(range(6)):
+                range6_perm = list(perm)
+                sortfunc(range6_perm)
+                assert range6_perm == range(6)
+        return "test pass"
+
+if __name__ == "__main__":
+    tester = SortTest()
+    tester.run_tests()

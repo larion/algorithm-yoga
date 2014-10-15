@@ -5,6 +5,8 @@
 The algorithms that are implemented in this module are:
     c_com(graph) - find the connected components in an undirected graph
 
+    cycles(graph) - find all cycles in an undirected graph
+
     rand_graph(n, p) - return a random undirected graph and 
     an edge probability of p (0 <= p <= 1)
 
@@ -20,8 +22,6 @@ Date: 2014
     # kruskal(graph) - find the minimum spanning tree (for sparse graphs)
     #
     # prim(graph) - find the minimum spanning tree (for dense graphs)
-    #
-    # cycles(graph) - find cycles in a graph
     #
     # largest_perm(graph) - find the maximum permutation in a bipartite graph
     #
@@ -44,26 +44,43 @@ import graphsearch
 
 from algoyoga_test import BaseTest
 
+def cycles(graph):
+    """ Return the cycles in an undirected graph. """
+    cycles = []
+    def process_edge(s_state, x, y):
+        cycle = []
+        if y in s_state.discovered and y not in s_state.processed and s_state.parents[x] != y:
+            # We found a back edge; now we just need to back up from y until 
+            # we find x to get the cycle
+            # print x, y
+            z = x
+            while z!=y:
+                cycle.append(z)
+                z=s_state.parents[z]
+            cycle.append(y)
+            cycles.append(list(reversed(cycle)))
+    graphsearch.search(graph, search_type="dfs", process_edge = process_edge)
+    return cycles
+
 def c_com(graph):
     """ Take an undirected graph represented as an adjacency list (a dict)
     and return its connected components (as a list of sets).
     """
-    comp_members = [] # current component members
+    comp_members = set() # current component members
     comps = [] # list containing all the components
 
-    def push_stack(node):
-        comp_members.append(node)
+    def push_stack(s_state, node):
+        comp_members.add(node)
 
-    def pop_stack(node):
-        component = comp_members[:]
-        del comp_members[:]
+    def pop_stack(s_state, node):
+        component = comp_members.copy()
+        comp_members.clear()
         if component: # a component can't be empty
-            comps.append(set(component)) # add component to the component list
+            comps.append(component) # add component to the component list
 
-    graphsearch.search(graph, process_vertex = push_stack, new_component = pop_stack)
-    pop_stack(None) # add the last component
+    graphsearch.search(graph, search_type="bfs", process_vertex_early = push_stack, new_component = pop_stack)
+    pop_stack(None, None) # add the last component
     return comps
-
 
 def rand_graph(n, p):
     """ generate a random undirected graph with n nodes and an
@@ -117,7 +134,7 @@ def largest_perm(graph): #TODO: update docstring -> relation between natural num
 
 class GraphTest(BaseTest):
     def __init__(self):
-        testlist = [self.test_ccom]
+        testlist = [self.test_ccom, self.test_cycles]
         super(GraphTest,self).__init__("miscellaneous graph algorithms", testlist)
 
     def test_ccom(self):
@@ -144,6 +161,37 @@ class GraphTest(BaseTest):
         # large complete graph
         testgraph3 = {n: range(100) for n in range(100)}
         assert c_com(testgraph3) == [set(range(100))]
+        return "test pass"
+
+    def test_cycles(self):
+        """ Test the cycles function. """
+        testcycle0 = dict()
+        testcycle1 = {n: [(n-1)%100, (n+1)%100] for n in range(100)}
+        testcycle2 = dict()
+        testcycle2 = {n: [n-1, n+1] for n in range(1,100)}
+        testcycle2[0] = [1]
+        # make a cycle
+        testcycle2[100] = [99, 80]
+        testcycle2[80].append(100)
+        testcycle3 = {1: [1]}
+        testcycle4 = {
+                0: [1, 3],
+                1: [0, 2],
+                2: [1, 3, 4],
+                3: [0, 2],
+                4: [2, 7, 5],
+                5: [4, 6],
+                6: [5, 7],
+                7: [4, 6],
+                }
+        cycle4_expected = [set([0,1,2,3]), set([4,5,6,7])]
+        cycle4_results = [set(cycle) for cycle in cycles(testcycle4)]
+        assert cycles(testcycle0) == []
+        assert set(cycles(testcycle1)[0])== set(range(100))
+        assert set(cycles(testcycle2)[0])== set(range(80, 101))
+        assert cycles(testcycle3) == [[1]]
+        assert all(cycle in cycle4_results for cycle in cycle4_expected) 
+        assert all(cycle in cycle4_expected for cycle in cycle4_results) 
         return "test pass"
 
 if __name__ == "__main__":

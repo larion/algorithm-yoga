@@ -18,15 +18,24 @@ from algoyoga_test import BaseTest
 from collections import deque
 
 # TODO:
+# SearchOptions object?
 # inorder, postorder, preorder
 # implicit graphs!
+# Update docstring for graphsearch (process_vertex_early and late)
 
-def search(graph, node=None, search_type="bfs", 
-        process_vertex=None, process_edge=None, new_component=None):
+### interface ###
+
+def search(*args, **kwargs):
     """ A wrapper around GraphSearch.search() to perform graph searches. """
-    mysearch = GraphSearch(graph, node, search_type, process_vertex,
-            process_edge, new_component)
-    return mysearch.search()
+    graphsearch = GraphSearch(*args, **kwargs)
+    return graphsearch.search()
+
+#################
+
+class GraphSearchError(Exception):
+    """ GraphSearch exception class """
+    def __init__(self, message):
+        self.message = message
 
 class GraphSearch(object):
     """ Class for graph traversals. The main public method of this class is
@@ -34,7 +43,7 @@ class GraphSearch(object):
     was initialized. 
     """
     def __init__(self, graph, node=None, search_type="bfs", 
-        process_vertex=None, process_edge=None, new_component=None):
+        process_vertex_early=None, process_vertex_late=None, process_edge=None, new_component=None):
         """ Initialize graph search. The only mandatory argument is the graph
         itself, which is represented as a dictionary mapping nodes to the
         list of their neighbours.
@@ -67,10 +76,12 @@ class GraphSearch(object):
         # function do_nothing:
         def do_nothing(*args): 
             """ Do absolutely nothing. """
-        if process_vertex is None: process_vertex=do_nothing
+        if process_vertex_early is None: process_vertex_early=do_nothing
+        if process_vertex_late is None: process_vertex_late=do_nothing
         if process_edge is None: process_edge=do_nothing
         if new_component is None: new_component=do_nothing
-        self.process_vertex = process_vertex
+        self.process_vertex_early = process_vertex_early
+        self.process_vertex_late = process_vertex_late
         self.process_edge = process_edge
         self.new_component = new_component
         self.initial_node = node
@@ -87,30 +98,65 @@ class GraphSearch(object):
             if node in state.processed: 
                 # already processed
                 continue
-            else:
-                # traverse component
-                newcomp = self.new_component(node)
+            else: # traverse component
+                # call client defined function for new components
+                # return if new_component wants us to.
+                newcomp = self.new_component(state, node)
                 if newcomp is not None:
                     return newcomp
-                state._push_node(node)
+                state.discovered.add(node)
+                self.add_children(node, state)
+                # early processing of root vertex
+                proc_vertex = self.process_vertex_early(state, node)
+                if proc_vertex is not None:
+                    return proc_vertex
                 while state.frontier:
-                    # get node to process
-                    current = state._pop_node()
-                    # already processed - continue
-                    if current in state.processed: 
+                    # Get signal to process
+                    message, value = state._pop()
+                    # Handle signals. 
+                    #
+                    # "processed" means that the 
+                    # node given in value is ready for late processing (in DFS
+                    # this means that the subtree under it is completely
+                    # traversed). 
+                    #
+                    # "edge" means that an edge of the graph needs to be traversed
+                    #
+                    if message == "processed": 
+                        # late processing of vertex
+                        proc_vertex = self.process_vertex_late(state, value)
+                        if proc_vertex is not None:
+                            return proc_vertex
+                        state.processed.add(value)
                         continue
-                    # process current vertex
-                    # return if process_vertex() wants us to
-                    proc_vertex = self.process_vertex(current)
-                    if proc_vertex is not None:
-                        return proc_vertex
-                    for neighbour in self.graph[current]:
-                        # process edge - return if process_edge() wants us to
-                        proc_edge = self.process_edge(current, neighbour)
+                    elif message == "edge": # traverse an edge
+                        node_from , node_to = value
+                        # edge processing
+                        proc_edge = self.process_edge(state, node_from, node_to)
                         if proc_edge is not None:
                             return proc_edge
-                        state._push_node(neighbour)
-                    state.processed.add(current)
+                        if node_to not in state.discovered:
+                            state.discovered.add(node_to)
+                            state.parents[node_to] = node_from
+                            self.add_children(node_to, state)
+                            # early processing of vertex
+                            proc_vertex = self.process_vertex_early(state, node_to)
+                            if proc_vertex is not None:
+                                return proc_vertex
+                    else: # unknown signal
+                        raise GraphSearchError("Unknown signal encountered.", current)
+
+    def add_children(self, node, state):
+        """ Add all children of node to frontier """
+        # We have to push a signal into the queue so that we
+        # can know when the subtree under current will be processed.
+        # We will add the signal before the children of the current
+        # node if we are doing DFS and after them in case we are doing BFS.
+        processed_signal = GraphSearchSignal("processed", node)
+        state._push(processed_signal)
+        for neighbour in self.graph[node]:
+            signal = GraphSearchSignal("edge", (node, neighbour))
+            state._push(signal)
                     
     def get_search_state(self):
         """ Return a new GraphSearchState object. """
@@ -120,14 +166,20 @@ class GraphSearchState(object):
     """ Class representing search states for GraphSearch. The main (public)
     attributes are (you will probably only need these): 
         
-        processed    the set of nodes that are already processed by the search
-        frontier    the current frontier (i. e. nodes that are discovered but
-        not yet processed).
-        
+        processed    The set of nodes that are already processed by the search.
+                     This implies that all of their children are discovered and
+                     in case of DFS that the whole subtree under them is 
+                     processed.
+        discovered    The set of nodes that are discovered by the search
+        frontier    the current frontier. This is the list of nodes scheduled
+                    for traversal.
+        parents     A dictionary containing the parents of all the vertices in
+                    the traversal tree
+
     object methods:
         
-        _pop_node()   gets a single node from the frontier 
-        _push_node(node)   pushes a single node to the frontier
+        _pop()   gets a single node from the frontier 
+        _push(node)   pushes a signal to the frontier
 
     These methods are useful to abstract away from the underlying datastructure
     used for the frontier (i. e. a FIFO queue for BFS search and a stack for DFS
@@ -140,23 +192,43 @@ class GraphSearchState(object):
             self.frontier = list()
         self._search_type = search_type
         self.processed = set()
-        self._to_process = list()
+        self.discovered = set()
+        self.parents = {node: None for node in graph.iterkeys()}
+        self._to_process = list() # TODO find a better name for this
         nodes = list(graph.iterkeys())
         if initial_node is not None:
             self._to_process.append(initial_node)
             nodes.remove(node)
         self._to_process.extend(nodes)
 
-    def _pop_node(self):
+    def _pop(self):
         """ Pop node from frontier. """
         if self._search_type=="bfs":
             return self.frontier.popleft()
         elif self._search_type=="dfs":
             return self.frontier.pop()
 
-    def _push_node(self, node):
+    def _push(self, node):
         """ Push node to frontier. """
         self.frontier.append(node)
+        self.discovered.add(node)
+
+class GraphSearchSignal(object):
+    """ Container object used for signals in the search
+    queue. """
+    def __init__(self, message, val):
+        self.message = message
+        self.val = val
+
+    def __repr__(self):
+        return " ".join((self.message, str(self.val)))
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __iter__(self):
+        yield self.message
+        yield self.val
 
 class GraphSearchTest(BaseTest):
     def __init__(self):
@@ -193,12 +265,14 @@ class GraphSearchTest(BaseTest):
         trivial_expected = {"bfs": list(), "dfs": list()}
         listing = []
         testcases = [(tree, tree_expected), (cycle, cycle_expected), (trivial_graph, trivial_expected)]
-        def collect_nodes(node):
+        def collect_nodes(s_state, node):
             listing.append(node)
         for mode in ["bfs", "dfs"]:
             for testobject, expected in testcases:
-                search(testobject, process_vertex = collect_nodes, search_type=mode)
+                print "testing {!s} on {!s}   ".format(mode, testobject),
+                search(testobject, process_vertex_early = collect_nodes, search_type=mode)
                 assert listing == expected[mode]
+                print "OK"
                 del listing[:]
         return "test pass"
 
