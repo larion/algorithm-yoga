@@ -1,15 +1,31 @@
-Algo-yoga
+Algorithm-yoga
+==============
 
-This is a collection of some fundamental algorithms implemented in Python.
+This is a collection of some fundamental algorithms in Python 2.7.
+At the moment around one third of the planned algorithms are implemented.
 
-Currently the following algorithms are implemented:
+Currently the following algorithms can be used:
 
-TODO
+graphs
+------
+	- Connected Components in an undirected graph
+	- Strongly Connected Components in a directed graph
+	- Find cycles in a 
+	- Generate random directed graph
+	- Generate random undirected graph
 
-graphs:
+strings
+-------
+	- Rabin-Karp pattern mathing
+	- Hash function
 
-strings:
+sorting
+-------
+	- selection sort (both with and without recursion)
+	- insertion sort (both with and without recursion)
 
-sorting:
-
-miscellaneous:
+miscellaneous
+-------------
+	- binary search
+	- list rotation
+	- uniq on lists
