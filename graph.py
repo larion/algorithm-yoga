@@ -9,10 +9,10 @@ The algorithms that are implemented in this module are:
 
     cycles(graph) - find all cycles in an undirected graph
 
-    rand_graph(n, p) - return a random undirected graph and 
+    rand_graph(n, p) - return a random undirected graph and
     an edge probability of p (0 <= p <= 1)
 
-    rand_dgraph(n, p) - return a random directed graph with n nodes and 
+    rand_dgraph(n, p) - return a random directed graph with n nodes and
     an edge probability of p (0 <= p <= 1)
 
 Author: Larion Garaczi
@@ -85,6 +85,12 @@ def rand_dgraph(n, p):
 # bellman_ford(graph, x, y) - find the shortest path between two nodes in a
 # weighted graph
 #
+# floyd_warshall(graph) - find the shortest path between all pairs in a graph
+#
+# diameter(graph) - find the diameter of a graph
+#
+# transitive_closure(graph) - return the transitive closure of the graph
+#
 # articulaton_vertex(graph) - find the articulation vertices in a graph
 #
 
@@ -115,8 +121,8 @@ def largest_perm(graph): #TODO: update docstring -> relation between natural num
 class Graph(object):
     """ Class for the graph algorithms. """
     def __init__(self, graph):
-        """ Initialize the Graph object. This method just stores the graph to be 
-        processed. 
+        """ Initialize the Graph object. This method just stores the graph to be
+        processed.
         """
         self.graph = graph
 
@@ -129,9 +135,9 @@ class Graph(object):
             clock = 0 # initialize clock
             dt = dict() # map nodes to their discovery time
             # map a node X to the lowest dt[Y] s. t. Y is reachable from X
-            reachable_dt = dict() 
+            reachable_dt = dict()
             stack = []
-            components = list() 
+            components = list()
 
         def proc_vertex_early(s_state, node):
             # initialize dt and reachable_dt (every node is trivially reachable from itself)
@@ -139,15 +145,15 @@ class Graph(object):
             searchglobals.clock+=1 # tick
             searchglobals.stack.append(node)
 
-        def proc_edge(s_state, x, y): 
+        def proc_edge(s_state, x, y):
             if y in s_state.discovered and y not in s_state.processed:
                 # found back-edge, update reachable_dt accordingly
                 if searchglobals.reachable_dt[x] > searchglobals.dt[y]:
                     searchglobals.reachable_dt[x] = searchglobals.dt[y]
 
-        def proc_vertex_late(s_state, node): 
+        def proc_vertex_late(s_state, node):
             parent = s_state.parents[node]
-            reachable = searchglobals.reachable_dt[node] 
+            reachable = searchglobals.reachable_dt[node]
             dt = searchglobals.dt[node]
             # propagate reachable_dt upwards
             if parent is not None and reachable < searchglobals.reachable_dt[parent]:
@@ -173,7 +179,7 @@ class Graph(object):
         def process_edge(s_state, x, y):
             cycle = []
             if y in s_state.discovered and y not in s_state.processed and s_state.parents[x] != y:
-                # We found a back edge; now we just need to back up from y until 
+                # We found a back edge; now we just need to back up from y until
                 # we find x to get the cycle
                 # print x, y
                 z = x
@@ -239,7 +245,7 @@ class GraphTest(BaseTest):
         triv_sccs = frozenset()
         large_cycle = {n:[(n+1)%100] for n in range(100)}
         large_cycle_sccs = frozenset([frozenset(range(100))])
-        testcases = [ 
+        testcases = [
                 (complex_graph, complex_sccs),
                 (triv, triv_sccs),
                 (large_cycle, large_cycle_sccs),
@@ -302,8 +308,8 @@ class GraphTest(BaseTest):
         assert set(cycles(testcycle1)[0])== set(range(100))
         assert set(cycles(testcycle2)[0])== set(range(80, 101))
         assert cycles(testcycle3) == [[1]]
-        assert all(cycle in cycle4_results for cycle in cycle4_expected) 
-        assert all(cycle in cycle4_expected for cycle in cycle4_results) 
+        assert all(cycle in cycle4_results for cycle in cycle4_expected)
+        assert all(cycle in cycle4_expected for cycle in cycle4_results)
         return "test pass"
 
 if __name__ == "__main__":
